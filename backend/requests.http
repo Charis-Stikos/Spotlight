@@ -1,0 +1,100 @@
+### Spotlight API — runnable requests (WebStorm / VS Code REST Client)
+### Start the backend first: npm start (from backend/). Run requests top-to-bottom.
+
+@baseUrl = http://localhost:4000/api
+@email = demo@example.com
+@password = Password123
+
+### Health check
+GET http://localhost:4000/health
+
+### Register (saves tokens for the requests below)
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{ "name": "Demo User", "email": "{{email}}", "password": "{{password}}" }
+
+> {% client.global.set("accessToken", response.body.accessToken); client.global.set("refreshToken", response.body.refreshToken); %}
+
+### Login (use if already registered)
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{ "email": "{{email}}", "password": "{{password}}" }
+
+> {% client.global.set("accessToken", response.body.accessToken); client.global.set("refreshToken", response.body.refreshToken); %}
+
+### Current user
+GET {{baseUrl}}/auth/me
+Authorization: Bearer {{accessToken}}
+
+### Refresh tokens
+POST {{baseUrl}}/auth/refresh
+Content-Type: application/json
+
+{ "refreshToken": "{{refreshToken}}" }
+
+> {% client.global.set("accessToken", response.body.accessToken); client.global.set("refreshToken", response.body.refreshToken); %}
+
+###############################################################
+# Catalog (public)
+###############################################################
+
+### All theatres
+GET {{baseUrl}}/theatres
+
+### Search theatres by name or location
+GET {{baseUrl}}/theatres?q=Αθήνα
+
+### Theatre details (with its shows)
+GET {{baseUrl}}/theatres/1
+
+### All shows
+GET {{baseUrl}}/shows
+
+### Filter shows by theatre + date
+GET {{baseUrl}}/shows?theatreId=1&date=2026-06-05
+
+### Show details
+GET {{baseUrl}}/shows/1
+
+### Showtimes for a show
+GET {{baseUrl}}/showtimes?showId=1
+
+### Showtime details (with category prices)
+GET {{baseUrl}}/showtimes/1
+
+### Seat map for a showtime
+GET {{baseUrl}}/showtimes/1/seats
+
+###############################################################
+# Reservations (require auth)
+###############################################################
+
+### Create a reservation (use real seatIds from the seat map above)
+POST {{baseUrl}}/reservations
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{ "showtimeId": 1, "seatIds": [1, 25] }
+
+> {% client.global.set("reservationId", response.body.id); %}
+
+### My reservations
+GET {{baseUrl}}/user/reservations
+Authorization: Bearer {{accessToken}}
+
+### Reservation details
+GET {{baseUrl}}/reservations/{{reservationId}}
+Authorization: Bearer {{accessToken}}
+
+### Modify reservation seats
+PATCH {{baseUrl}}/reservations/{{reservationId}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{ "seatIds": [49, 73] }
+
+### Cancel reservation
+DELETE {{baseUrl}}/reservations/{{reservationId}}
+Authorization: Bearer {{accessToken}}

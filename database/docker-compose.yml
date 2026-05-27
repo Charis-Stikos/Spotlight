@@ -1,0 +1,47 @@
+# =============================================================================
+#  Spotlight — local database stack
+#    db      : MariaDB 11.4 (LTS). schema.sql + seed.sql run automatically the
+#              first time the data volume is created.
+#    adminer : lightweight web DB GUI at http://localhost:8080
+#
+#  Usage:
+#    docker compose up -d      # start
+#    docker compose down       # stop (keeps data)
+#    docker compose down -v     # stop AND wipe data (re-runs schema+seed next up)
+# =============================================================================
+services:
+  db:
+    image: mariadb:11.4
+    container_name: spotlight-mariadb
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpass}
+      MARIADB_DATABASE: ${DB_NAME:-spotlight}
+      MARIADB_USER: ${DB_USER:-spotlight}
+      MARIADB_PASSWORD: ${DB_PASSWORD:-spotlightpass}
+    ports:
+      - "3306:3306"
+    volumes:
+      - spotlight_db_data:/var/lib/mysql
+      - ./schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  adminer:
+    image: adminer:latest
+    container_name: spotlight-adminer
+    restart: unless-stopped
+    depends_on:
+      - db
+    ports:
+      - "8080:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: db
+
+volumes:
+  spotlight_db_data:

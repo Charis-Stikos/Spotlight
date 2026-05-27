@@ -1,0 +1,201 @@
+{
+  "info": {
+    "name": "Spotlight API",
+    "description": "Theatre seat-reservation REST API (CN6035). Run Auth > Register or Login first; the access token is captured automatically for the protected requests.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:4000/api" },
+    { "key": "accessToken", "value": "" },
+    { "key": "refreshToken", "value": "" },
+    { "key": "reservationId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j.accessToken) pm.collectionVariables.set('accessToken', j.accessToken);",
+                  "if (j.refreshToken) pm.collectionVariables.set('refreshToken', j.refreshToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Demo User\",\n  \"email\": \"demo@example.com\",\n  \"password\": \"Password123\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/register", "host": ["{{baseUrl}}"], "path": ["auth", "register"] }
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j.accessToken) pm.collectionVariables.set('accessToken', j.accessToken);",
+                  "if (j.refreshToken) pm.collectionVariables.set('refreshToken', j.refreshToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"demo@example.com\",\n  \"password\": \"Password123\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] }
+          }
+        },
+        {
+          "name": "Me",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/auth/me", "host": ["{{baseUrl}}"], "path": ["auth", "me"] }
+          }
+        },
+        {
+          "name": "Refresh",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j.accessToken) pm.collectionVariables.set('accessToken', j.accessToken);",
+                  "if (j.refreshToken) pm.collectionVariables.set('refreshToken', j.refreshToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/refresh", "host": ["{{baseUrl}}"], "path": ["auth", "refresh"] }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/logout", "host": ["{{baseUrl}}"], "path": ["auth", "logout"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Catalog",
+      "item": [
+        {
+          "name": "List theatres",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/theatres", "host": ["{{baseUrl}}"], "path": ["theatres"] } }
+        },
+        {
+          "name": "Search theatres",
+          "request": {
+            "method": "GET", "header": [],
+            "url": { "raw": "{{baseUrl}}/theatres?q=Αθήνα", "host": ["{{baseUrl}}"], "path": ["theatres"], "query": [{ "key": "q", "value": "Αθήνα" }] }
+          }
+        },
+        {
+          "name": "Get theatre",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/theatres/1", "host": ["{{baseUrl}}"], "path": ["theatres", "1"] } }
+        },
+        {
+          "name": "List shows",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/shows", "host": ["{{baseUrl}}"], "path": ["shows"] } }
+        },
+        {
+          "name": "Filter shows",
+          "request": {
+            "method": "GET", "header": [],
+            "url": { "raw": "{{baseUrl}}/shows?theatreId=1&date=2026-06-05", "host": ["{{baseUrl}}"], "path": ["shows"], "query": [{ "key": "theatreId", "value": "1" }, { "key": "date", "value": "2026-06-05" }] }
+          }
+        },
+        {
+          "name": "Get show",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/shows/1", "host": ["{{baseUrl}}"], "path": ["shows", "1"] } }
+        },
+        {
+          "name": "Showtimes for show",
+          "request": {
+            "method": "GET", "header": [],
+            "url": { "raw": "{{baseUrl}}/showtimes?showId=1", "host": ["{{baseUrl}}"], "path": ["showtimes"], "query": [{ "key": "showId", "value": "1" }] }
+          }
+        },
+        {
+          "name": "Get showtime",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/showtimes/1", "host": ["{{baseUrl}}"], "path": ["showtimes", "1"] } }
+        },
+        {
+          "name": "Seat map",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/showtimes/1/seats", "host": ["{{baseUrl}}"], "path": ["showtimes", "1", "seats"] } }
+        }
+      ]
+    },
+    {
+      "name": "Reservations",
+      "item": [
+        {
+          "name": "Create reservation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["const j = pm.response.json();", "if (j.id) pm.collectionVariables.set('reservationId', j.id);"]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"showtimeId\": 1,\n  \"seatIds\": [1, 25]\n}" },
+            "url": { "raw": "{{baseUrl}}/reservations", "host": ["{{baseUrl}}"], "path": ["reservations"] }
+          }
+        },
+        {
+          "name": "My reservations",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/user/reservations", "host": ["{{baseUrl}}"], "path": ["user", "reservations"] } }
+        },
+        {
+          "name": "Get reservation",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/reservations/{{reservationId}}", "host": ["{{baseUrl}}"], "path": ["reservations", "{{reservationId}}"] } }
+        },
+        {
+          "name": "Modify reservation",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"seatIds\": [49, 73]\n}" },
+            "url": { "raw": "{{baseUrl}}/reservations/{{reservationId}}", "host": ["{{baseUrl}}"], "path": ["reservations", "{{reservationId}}"] }
+          }
+        },
+        {
+          "name": "Cancel reservation",
+          "request": { "method": "DELETE", "header": [], "url": { "raw": "{{baseUrl}}/reservations/{{reservationId}}", "host": ["{{baseUrl}}"], "path": ["reservations", "{{reservationId}}"] } }
+        }
+      ]
+    }
+  ]
+}
