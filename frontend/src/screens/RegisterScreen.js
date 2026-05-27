@@ -102,6 +102,13 @@ export function RegisterScreen({ navigation }) {
     }
   };
 
+  // Εναλλαγή προς Login: αν είναι η προηγούμενη οθόνη, ολίσθηση πίσω· αλλιώς ολίσθηση από πάνω (χωρίς στοίβαξη)
+  const goToSignIn = () => {
+    const { routes } = navigation.getState();
+    if (routes[routes.length - 2]?.name === 'Login') navigation.goBack();
+    else navigation.push('Login');
+  };
+
   const translateY = enter.interpolate({ inputRange: [0, 1], outputRange: [24, 0] });
 
   return (
@@ -137,7 +144,7 @@ export function RegisterScreen({ navigation }) {
 
             <View style={styles.footer}>
               <Text style={styles.footerText}>Already have an account?</Text>
-              <PressableScale onPress={() => navigation.goBack()} scaleTo={0.92}>
+              <PressableScale onPress={goToSignIn} scaleTo={0.92}>
                 <Text style={styles.footerLink}>Sign in</Text>
               </PressableScale>
             </View>
