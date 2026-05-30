@@ -1,3 +1,4 @@
+// Hashing & έλεγχος κωδικών με bcrypt — ο καθαρός κωδικός δεν αποθηκεύεται ποτέ
 import bcrypt from 'bcryptjs';
 
 const SALT_ROUNDS = 10;

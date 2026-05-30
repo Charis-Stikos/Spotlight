@@ -1,3 +1,4 @@
+// Endpoints καταλόγου — θέατρα, παραστάσεις, προβολές, χάρτης θέσεων
 import { api } from './client';
 
 export const getTheatres = (q) =>

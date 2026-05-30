@@ -1,3 +1,4 @@
+// Σχήματα επικύρωσης (Zod) — δημιουργία/τροποποίηση κράτησης
 import { z } from 'zod';
 
 export const createReservationSchema = z.object({

@@ -1,3 +1,4 @@
+// Controllers προβολών — προωθούν στο showtime.service
 import * as showtimeService from '../services/showtime.service.js';
 
 export async function list(req, res) {

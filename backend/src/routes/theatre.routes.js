@@ -1,3 +1,4 @@
+// Διαδρομές θεάτρων (δημόσιες)
 import { Router } from 'express';
 import * as controller from '../controllers/theatre.controller.js';
 import { validate } from '../middleware/validate.js';

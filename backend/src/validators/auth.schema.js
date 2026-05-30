@@ -1,3 +1,4 @@
+// Σχήματα επικύρωσης (Zod) — αιτήματα ταυτοποίησης
 import { z } from 'zod';
 
 export const registerSchema = z.object({

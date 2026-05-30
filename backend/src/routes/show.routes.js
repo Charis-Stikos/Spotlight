@@ -1,3 +1,4 @@
+// Διαδρομές παραστάσεων (δημόσιες)
 import { Router } from 'express';
 import * as controller from '../controllers/show.controller.js';
 import { validate } from '../middleware/validate.js';

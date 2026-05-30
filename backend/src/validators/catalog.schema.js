@@ -1,3 +1,4 @@
+// Σχήματα επικύρωσης (Zod) — query/params του καταλόγου
 import { z } from 'zod';
 
 const dateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format');

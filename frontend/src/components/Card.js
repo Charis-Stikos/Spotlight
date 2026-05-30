@@ -1,6 +1,7 @@
 import { View, Pressable, StyleSheet } from 'react-native';
 import { colors, radius, spacing, shadow } from '../theme/theme';
 
+// Κάρτα-επιφάνεια· γίνεται πατήσιμη όταν δοθεί onPress
 export function Card({ children, onPress, style }) {
   if (onPress) {
     return (

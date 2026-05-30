@@ -2,6 +2,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Button } from './Button';
 import { colors, font, spacing } from '../theme/theme';
 
+// Προβολή σφάλματος με προαιρετικό κουμπί επανάληψης
 export function ErrorView({ message, onRetry }) {
   return (
     <View style={styles.wrap}>

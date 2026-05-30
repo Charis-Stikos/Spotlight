@@ -1,3 +1,4 @@
+// Controllers θεάτρων — προωθούν στο theatre.service
 import * as theatreService from '../services/theatre.service.js';
 
 export async function list(req, res) {

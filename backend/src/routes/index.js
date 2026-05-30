@@ -1,3 +1,4 @@
+// Κεντρικός router — συνδέει όλες τις υποδιαδρομές κάτω από το /api
 import { Router } from 'express';
 import { authRoutes } from './auth.routes.js';
 import { theatreRoutes } from './theatre.routes.js';

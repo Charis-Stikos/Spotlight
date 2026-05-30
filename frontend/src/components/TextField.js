@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
 import { colors, radius, font, spacing } from '../theme/theme';
 
+// Πεδίο κειμένου με label, σφάλμα και εναλλαγή εμφάνισης κωδικού
 export function TextField({ label, value, onChangeText, error, secureTextEntry, ...props }) {
   const [hidden, setHidden] = useState(!!secureTextEntry);
   const [focused, setFocused] = useState(false);

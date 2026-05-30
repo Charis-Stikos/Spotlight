@@ -1,6 +1,7 @@
 import { View, ActivityIndicator, Text, StyleSheet } from 'react-native';
 import { colors, font, spacing } from '../theme/theme';
 
+// Δείκτης φόρτωσης με προαιρετική ετικέτα
 export function Loading({ label }) {
   return (
     <View style={styles.wrap}>

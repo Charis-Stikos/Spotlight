@@ -1,3 +1,4 @@
+// Controllers κρατήσεων — προωθούν στο reservation.service
 import * as reservationService from '../services/reservation.service.js';
 
 export async function create(req, res) {

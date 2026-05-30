@@ -1,3 +1,4 @@
+// Controllers παραστάσεων — προωθούν στο show.service
 import * as showService from '../services/show.service.js';
 
 export async function list(req, res) {

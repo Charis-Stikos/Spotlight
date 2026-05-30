@@ -1,3 +1,4 @@
+// Endpoints κρατήσεων
 import { api } from './client';
 
 export const createReservation = (showtimeId, seatIds) =>

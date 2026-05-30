@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { colors, font, spacing } from '../theme/theme';
 
+// Κενή κατάσταση (εικονίδιο + τίτλος + υπότιτλος) για άδειες λίστες
 export function EmptyState({ icon = '🎭', title, subtitle }) {
   return (
     <View style={styles.wrap}>

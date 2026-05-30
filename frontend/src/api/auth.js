@@ -1,3 +1,4 @@
+// Endpoints ταυτοποίησης
 import { api } from './client';
 
 export const register = (name, email, password) =>

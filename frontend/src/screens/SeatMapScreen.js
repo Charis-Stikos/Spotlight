@@ -61,6 +61,7 @@ export function SeatMapScreen({ route, navigation }) {
   const loadSeats = useCallback(async () => {
     const data = await getSeatMap(showtimeId);
     setSeats(data);
+    return data; // επιστροφή των φρέσκων δεδομένων για άμεση χρήση (αποφυγή stale state)
   }, [showtimeId]);
 
   const load = useCallback(async () => {
@@ -145,8 +146,12 @@ export function SeatMapScreen({ route, navigation }) {
       }
     } catch (e) {
       Alert.alert('Could not complete booking', getErrorMessage(e));
-      await loadSeats();
-      setSelected((prev) => new Set([...prev].filter((id) => !seats.find((s) => s.seatId === id)?.taken)));
+      // Ξαναφόρτωσε τις θέσεις και κράτα στην επιλογή μόνο όσες ΔΕΝ κρατήθηκαν στο μεταξύ από άλλον
+      const fresh = await loadSeats();
+      setSelected((prev) => new Set([...prev].filter((id) => {
+        const s = fresh.find((x) => x.seatId === id);
+        return s && !(s.taken && !ownSeatIds.has(id));
+      })));
     } finally {
       setSubmitting(false);
     }

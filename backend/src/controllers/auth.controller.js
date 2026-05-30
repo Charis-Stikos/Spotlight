@@ -1,3 +1,4 @@
+// Controllers ταυτοποίησης — προωθούν τα αιτήματα στο auth.service και επιστρέφουν JSON
 import * as authService from '../services/auth.service.js';
 
 export async function register(req, res) {

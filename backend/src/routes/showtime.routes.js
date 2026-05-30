@@ -1,3 +1,4 @@
+// Διαδρομές προβολών & χάρτη θέσεων (δημόσιες)
 import { Router } from 'express';
 import * as controller from '../controllers/showtime.controller.js';
 import { validate } from '../middleware/validate.js';
