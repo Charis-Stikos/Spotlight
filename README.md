@@ -26,14 +26,42 @@
 
 Υλοποιεί ένα κλασικό **κατανεμημένο σύστημα τριών επιπέδων**: ένας **mobile client** (React Native) επικοινωνεί μέσω **REST API** (Node.js / Express) με μια **βάση δεδομένων** (MariaDB). Καλύπτει τις βασικές αρχές του μαθήματος: **ταυτοποίηση/εξουσιοδότηση (JWT)**, **συνέπεια δεδομένων** και **διαχείριση ταυτόχρονων κρατήσεων θέσεων**.
 
+```mermaid
+flowchart LR
+    subgraph CLIENT["Mobile Client · React Native (Expo)"]
+        direction TB
+        SCR["Οθόνες &amp; Πλοήγηση<br/>Discover · Search · ShowDetails<br/>SeatMap · Tickets · Profile"]
+        CTX["Contexts<br/>Auth · Favorites · Recent · Badge"]
+        APIC["API client (axios)<br/>interceptors: Bearer JWT + auto-refresh"]
+        SEC["expo-secure-store<br/>keychain / keystore"]
+        SCR --> CTX
+        CTX --> APIC
+        CTX -. token storage .-> SEC
+    end
+
+    subgraph SERVER["REST API · Node.js / Express"]
+        direction TB
+        MW["Middleware<br/>helmet · CORS · rate-limit<br/>JWT auth · Zod validate · error handler"]
+        RTE["Routes (/api)"]
+        CTL["Controllers"]
+        SVC["Services<br/>business logic + transactions"]
+        MW --> RTE
+        RTE --> CTL
+        CTL --> SVC
+    end
+
+    subgraph DATA["Database · MariaDB 11.4 (Docker)"]
+        direction TB
+        POOL["mysql2 connection pool"]
+        TBL["InnoDB tables<br/>10 σχετιζόμενοι πίνακες"]
+        POOL --> TBL
+    end
+
+    APIC -->|"HTTPS / JSON · Bearer JWT"| MW
+    SVC -->|"SQL · FOR UPDATE · transactions"| POOL
 ```
- ┌───────────────────────┐      HTTPS / JSON      ┌───────────────────────┐      SQL       ┌──────────────┐
- │   React Native (Expo)  │  ───────────────────▶ │   Express REST API     │  ───────────▶ │   MariaDB     │
- │   ο mobile client      │   Bearer JWT           │   routes → controllers │  (mysql2 pool) │   (Docker)    │
- │   expo-secure-store    │ ◀───────────────────  │   → services           │ ◀───────────  │   InnoDB      │
- └───────────────────────┘                        └───────────────────────┘                └──────────────┘
-        ο πελάτης                                        ο εξυπηρετητής                        τα δεδομένα
-```
+
+<div align="center"><sub><b>ο πελάτης</b> ──▶ <b>ο εξυπηρετητής</b> ──▶ <b>τα δεδομένα</b> — κατανεμημένο σύστημα τριών επιπέδων</sub></div>
 
 ---
 
@@ -309,11 +337,84 @@ npx expo start                 # ανοίγει το Metro + ένα QR code
 
 `users`, `refresh_tokens`, `theatres`, `halls`, `seats`, `shows`, `showtimes`, `showtime_prices`, `reservations`, `reservation_seats`.
 
-```
-theatres 1─┬─* halls 1─* seats
-           └─* shows 1─* showtimes 1─┬─* showtime_prices
-                                     └─* reservations 1─* reservation_seats *─1 seats
-users 1─* reservations          users 1─* refresh_tokens
+```mermaid
+erDiagram
+    users           ||--o{ reservations      : "κάνει"
+    users           ||--o{ refresh_tokens    : "έχει"
+    theatres        ||--o{ halls             : "διαθέτει"
+    theatres        ||--o{ shows             : "ανεβάζει"
+    halls           ||--o{ seats             : "περιέχει"
+    halls           ||--o{ showtimes         : "φιλοξενεί"
+    shows           ||--o{ showtimes         : "προγραμματίζει"
+    showtimes       ||--o{ showtime_prices   : "τιμολογεί"
+    showtimes       ||--o{ reservations      : "δέχεται"
+    showtimes       ||--o{ reservation_seats : "δεσμεύει"
+    reservations    ||--o{ reservation_seats : "περιλαμβάνει"
+    seats           ||--o{ reservation_seats : "αντιστοιχεί"
+
+    users {
+        bigint   user_id       PK
+        varchar  name
+        varchar  email         UK
+        varchar  password_hash
+    }
+    refresh_tokens {
+        bigint   token_id      PK
+        bigint   user_id       FK
+        char     token_hash    UK "sha256 hash"
+        datetime expires_at
+        datetime revoked_at
+    }
+    theatres {
+        bigint   theatre_id    PK
+        varchar  name
+        varchar  location
+    }
+    halls {
+        bigint   hall_id       PK
+        bigint   theatre_id    FK
+        varchar  name
+    }
+    seats {
+        bigint   seat_id       PK
+        bigint   hall_id       FK
+        varchar  row_label
+        int      seat_number
+        enum     category      "STANDARD | PREMIUM | VIP"
+    }
+    shows {
+        bigint   show_id       PK
+        bigint   theatre_id    FK
+        varchar  title
+        int      duration_min
+        varchar  age_rating
+    }
+    showtimes {
+        bigint   showtime_id   PK
+        bigint   show_id       FK
+        bigint   hall_id       FK
+        datetime starts_at     "UNIQUE(hall_id, starts_at)"
+        decimal  base_price
+    }
+    showtime_prices {
+        bigint   showtime_id   PK, FK
+        enum     category      PK
+        decimal  price
+    }
+    reservations {
+        bigint   reservation_id PK
+        bigint   user_id        FK
+        bigint   showtime_id    FK
+        enum     status         "CONFIRMED | CANCELLED"
+        decimal  total_price
+    }
+    reservation_seats {
+        bigint   reservation_seat_id PK
+        bigint   reservation_id      FK
+        bigint   showtime_id         FK
+        bigint   seat_id             FK
+        decimal  price               "UNIQUE(showtime_id, seat_id)"
+    }
 ```
 
 - **Primary / Foreign keys** σε όλες τις σχέσεις, με `ON DELETE CASCADE`.
@@ -333,6 +434,32 @@ users 1─* reservations          users 1─* refresh_tokens
 1. Ο πίνακας `reservation_seats` έχει περιορισμό **`UNIQUE(showtime_id, seat_id)`**.
 2. Η κράτηση εκτελείται μέσα σε **transaction**: κλειδώνει τις ζητούμενες θέσεις (`SELECT … FOR UPDATE`), ελέγχει διαθεσιμότητα και μετά κάνει `INSERT`.
 3. Αν δύο αιτήματα «τρέξουν» ταυτόχρονα, ο **unique περιορισμός** απορρίπτει το δεύτερο `INSERT` → το API επιστρέφει **`409 Conflict`** και κάνει rollback.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor A as Χρήστης Α
+    actor B as Χρήστης Β
+    participant API as Express API
+    participant DB as MariaDB · InnoDB
+
+    Note over A,B: Επιλέγουν ταυτόχρονα την ΙΔΙΑ θέση για την ίδια προβολή
+    A->>API: POST /reservations (θέση 12)
+    B->>API: POST /reservations (θέση 12)
+
+    Note over API,DB: Transaction A
+    API->>DB: BEGIN · SELECT … FOR UPDATE
+    DB-->>API: κλείδωμα της θέσης 12
+    API->>DB: INSERT reservation_seats
+    API->>DB: COMMIT
+    API-->>A: 201 Created
+
+    Note over API,DB: Transaction B — περίμενε στο κλείδωμα
+    API->>DB: INSERT reservation_seats (θέση 12)
+    DB-->>API: ER_DUP_ENTRY<br/>UNIQUE(showtime_id, seat_id)
+    API->>DB: ROLLBACK
+    API-->>B: 409 Conflict
+```
 
 Η **ακύρωση** μιας κράτησης διαγράφει τις γραμμές `reservation_seats`, ελευθερώνοντας ξανά τις θέσεις.
 
