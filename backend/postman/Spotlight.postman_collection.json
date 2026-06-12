@@ -1,20 +1,66 @@
+
 {
   "info": {
     "name": "Spotlight API",
-    "description": "Theatre seat-reservation REST API (CN6035). Run Auth > Register or Login first; the access token is captured automatically for the protected requests.",
+    "description": "Theatre seat-reservation REST API (CN6035).\n\nRun the whole collection top-to-bottom (Collection Runner or `npx newman run`). It is self-configuring:\n- Auth > Register/Login captures the tokens automatically.\n- Catalog > List showtimes picks an UPCOMING showtime and two free seats automatically, so the Reservations folder always works regardless of seed dates.\n\nEvery request carries test assertions, so a green run proves the API works.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
     "type": "bearer",
     "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }]
   },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Σημερινή ημερομηνία για τα φίλτρα ?date=",
+          "pm.collectionVariables.set('today', new Date().toISOString().slice(0, 10));"
+        ]
+      }
+    }
+  ],
   "variable": [
+    { "key": "rootUrl", "value": "http://localhost:4000" },
     { "key": "baseUrl", "value": "http://localhost:4000/api" },
     { "key": "accessToken", "value": "" },
     { "key": "refreshToken", "value": "" },
+    { "key": "today", "value": "" },
+    { "key": "sampleShowId", "value": "1" },
+    { "key": "sampleShowTitle", "value": "" },
+    { "key": "showtimeId", "value": "1" },
+    { "key": "seatIds", "value": "[1, 2]" },
+    { "key": "modifySeatIds", "value": "[3, 4]" },
     { "key": "reservationId", "value": "" }
   ],
   "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Service reports ok', () => pm.expect(pm.response.json().status).to.eql('ok'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{rootUrl}}/health", "host": ["{{rootUrl}}"], "path": ["health"] }
+          }
+        }
+      ]
+    },
     {
       "name": "Auth",
       "item": [
@@ -26,6 +72,8 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "// 201 την πρώτη φορά, 409 αν το email υπάρχει ήδη (επόμενες εκτελέσεις) — και τα δύο αποδεκτά",
+                  "pm.test('Status is 201 (created) or 409 (email already registered)', () => pm.expect([201, 409]).to.include(pm.response.code));",
                   "const j = pm.response.json();",
                   "if (j.accessToken) pm.collectionVariables.set('accessToken', j.accessToken);",
                   "if (j.refreshToken) pm.collectionVariables.set('refreshToken', j.refreshToken);"
@@ -48,9 +96,15 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
                   "const j = pm.response.json();",
-                  "if (j.accessToken) pm.collectionVariables.set('accessToken', j.accessToken);",
-                  "if (j.refreshToken) pm.collectionVariables.set('refreshToken', j.refreshToken);"
+                  "pm.test('Returns access & refresh tokens', () => {",
+                  "  pm.expect(j.accessToken).to.be.a('string');",
+                  "  pm.expect(j.refreshToken).to.be.a('string');",
+                  "});",
+                  "pm.test('Returns the user', () => pm.expect(j.user.email).to.eql('demo@example.com'));",
+                  "pm.collectionVariables.set('accessToken', j.accessToken);",
+                  "pm.collectionVariables.set('refreshToken', j.refreshToken);"
                 ]
               }
             }
@@ -64,6 +118,18 @@
         },
         {
           "name": "Me",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Returns the current user', () => pm.expect(pm.response.json().user.email).to.eql('demo@example.com'));"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "header": [],
@@ -78,9 +144,15 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
                   "const j = pm.response.json();",
-                  "if (j.accessToken) pm.collectionVariables.set('accessToken', j.accessToken);",
-                  "if (j.refreshToken) pm.collectionVariables.set('refreshToken', j.refreshToken);"
+                  "pm.test('Rotates the tokens', () => {",
+                  "  pm.expect(j.accessToken).to.be.a('string');",
+                  "  pm.expect(j.refreshToken).to.be.a('string');",
+                  "  pm.expect(j.refreshToken).to.not.eql(pm.collectionVariables.get('refreshToken'));",
+                  "});",
+                  "pm.collectionVariables.set('accessToken', j.accessToken);",
+                  "pm.collectionVariables.set('refreshToken', j.refreshToken);"
                 ]
               }
             }
@@ -94,6 +166,18 @@
         },
         {
           "name": "Logout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Ανακαλεί το refresh token· το access token παραμένει έγκυρο μέχρι να λήξει",
+                  "pm.test('Status is 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
@@ -108,10 +192,34 @@
       "item": [
         {
           "name": "List theatres",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Returns a non-empty array', () => pm.expect(pm.response.json()).to.be.an('array').that.is.not.empty);"
+                ]
+              }
+            }
+          ],
           "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/theatres", "host": ["{{baseUrl}}"], "path": ["theatres"] } }
         },
         {
           "name": "Search theatres",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Returns an array', () => pm.expect(pm.response.json()).to.be.an('array'));"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET", "header": [],
             "url": { "raw": "{{baseUrl}}/theatres?q=Αθήνα", "host": ["{{baseUrl}}"], "path": ["theatres"], "query": [{ "key": "q", "value": "Αθήνα" }] }
@@ -119,37 +227,182 @@
         },
         {
           "name": "Get theatre",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Includes its shows', () => pm.expect(pm.response.json().shows).to.be.an('array'));"
+                ]
+              }
+            }
+          ],
           "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/theatres/1", "host": ["{{baseUrl}}"], "path": ["theatres", "1"] } }
         },
         {
           "name": "List shows",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const shows = pm.response.json();",
+                  "pm.test('Returns a non-empty array', () => pm.expect(shows).to.be.an('array').that.is.not.empty);",
+                  "// Κράτα ένα δείγμα για τα επόμενα αιτήματα (αναζήτηση τίτλου, λεπτομέρειες, showtimes)",
+                  "if (shows.length) {",
+                  "  pm.collectionVariables.set('sampleShowId', shows[0].id);",
+                  "  pm.collectionVariables.set('sampleShowTitle', shows[0].title);",
+                  "}"
+                ]
+              }
+            }
+          ],
           "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/shows", "host": ["{{baseUrl}}"], "path": ["shows"] } }
         },
         {
-          "name": "Filter shows",
+          "name": "Search shows by title",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Finds the sample show', () => pm.expect(pm.response.json()).to.be.an('array').that.is.not.empty);"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET", "header": [],
-            "url": { "raw": "{{baseUrl}}/shows?theatreId=1&date=2026-06-05", "host": ["{{baseUrl}}"], "path": ["shows"], "query": [{ "key": "theatreId", "value": "1" }, { "key": "date", "value": "2026-06-05" }] }
+            "url": { "raw": "{{baseUrl}}/shows?title={{sampleShowTitle}}", "host": ["{{baseUrl}}"], "path": ["shows"], "query": [{ "key": "title", "value": "{{sampleShowTitle}}" }] }
+          }
+        },
+        {
+          "name": "Filter shows (theatre & date)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Returns an array', () => pm.expect(pm.response.json()).to.be.an('array'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET", "header": [],
+            "url": { "raw": "{{baseUrl}}/shows?theatreId=1&date={{today}}", "host": ["{{baseUrl}}"], "path": ["shows"], "query": [{ "key": "theatreId", "value": "1" }, { "key": "date", "value": "{{today}}" }] }
           }
         },
         {
           "name": "Get show",
-          "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/shows/1", "host": ["{{baseUrl}}"], "path": ["shows", "1"] } }
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Returns the show', () => pm.expect(pm.response.json().id).to.eql(Number(pm.collectionVariables.get('sampleShowId'))));"
+                ]
+              }
+            }
+          ],
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/shows/{{sampleShowId}}", "host": ["{{baseUrl}}"], "path": ["shows", "{{sampleShowId}}"] } }
+        },
+        {
+          "name": "List showtimes (picks an upcoming one)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const list = pm.response.json();",
+                  "const future = list",
+                  "  .filter((s) => new Date(s.startsAt).getTime() > Date.now())",
+                  "  .sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt));",
+                  "pm.test('There is at least one upcoming showtime', () => pm.expect(future.length).to.be.above(0));",
+                  "if (!future.length) return;",
+                  "const st = future[0];",
+                  "pm.collectionVariables.set('showtimeId', st.id);",
+                  "// Διάλεξε 2 ελεύθερες θέσεις για την κράτηση και 2 διαφορετικές για την τροποποίηση",
+                  "pm.sendRequest(`${pm.collectionVariables.get('baseUrl')}/showtimes/${st.id}/seats`, (err, res) => {",
+                  "  if (err) { console.error(err); return; }",
+                  "  const free = res.json().filter((s) => !s.taken);",
+                  "  pm.test('There are at least 4 free seats for the demo booking', () => pm.expect(free.length).to.be.at.least(4));",
+                  "  pm.collectionVariables.set('seatIds', JSON.stringify(free.slice(0, 2).map((s) => s.seatId)));",
+                  "  pm.collectionVariables.set('modifySeatIds', JSON.stringify(free.slice(2, 4).map((s) => s.seatId)));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/showtimes", "host": ["{{baseUrl}}"], "path": ["showtimes"] } }
         },
         {
           "name": "Showtimes for show",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Returns an array', () => pm.expect(pm.response.json()).to.be.an('array'));"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET", "header": [],
-            "url": { "raw": "{{baseUrl}}/showtimes?showId=1", "host": ["{{baseUrl}}"], "path": ["showtimes"], "query": [{ "key": "showId", "value": "1" }] }
+            "url": { "raw": "{{baseUrl}}/showtimes?showId={{sampleShowId}}", "host": ["{{baseUrl}}"], "path": ["showtimes"], "query": [{ "key": "showId", "value": "{{sampleShowId}}" }] }
           }
         },
         {
           "name": "Get showtime",
-          "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/showtimes/1", "host": ["{{baseUrl}}"], "path": ["showtimes", "1"] } }
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Includes prices per category', () => pm.expect(pm.response.json().prices).to.be.an('array'));"
+                ]
+              }
+            }
+          ],
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/showtimes/{{showtimeId}}", "host": ["{{baseUrl}}"], "path": ["showtimes", "{{showtimeId}}"] } }
         },
         {
           "name": "Seat map",
-          "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/showtimes/1/seats", "host": ["{{baseUrl}}"], "path": ["showtimes", "1", "seats"] } }
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const seats = pm.response.json();",
+                  "pm.test('Returns the seat map', () => pm.expect(seats).to.be.an('array').that.is.not.empty);",
+                  "pm.test('Seats carry availability & price', () => {",
+                  "  pm.expect(seats[0]).to.have.property('taken');",
+                  "  pm.expect(seats[0]).to.have.property('price');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/showtimes/{{showtimeId}}/seats", "host": ["{{baseUrl}}"], "path": ["showtimes", "{{showtimeId}}", "seats"] } }
         }
       ]
     },
@@ -163,37 +416,142 @@
               "listen": "test",
               "script": {
                 "type": "text/javascript",
-                "exec": ["const j = pm.response.json();", "if (j.id) pm.collectionVariables.set('reservationId', j.id);"]
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.test('Reservation is confirmed with the requested seats', () => {",
+                  "  pm.expect(j.status).to.eql('CONFIRMED');",
+                  "  pm.expect(j.seats).to.have.lengthOf(JSON.parse(pm.collectionVariables.get('seatIds')).length);",
+                  "});",
+                  "if (j.id) pm.collectionVariables.set('reservationId', j.id);"
+                ]
               }
             }
           ],
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"showtimeId\": 1,\n  \"seatIds\": [1, 25]\n}" },
+            "body": { "mode": "raw", "raw": "{\n  \"showtimeId\": {{showtimeId}},\n  \"seatIds\": {{seatIds}}\n}" },
             "url": { "raw": "{{baseUrl}}/reservations", "host": ["{{baseUrl}}"], "path": ["reservations"] }
           }
         },
         {
           "name": "My reservations",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Contains the new reservation', () => {",
+                  "  const ids = pm.response.json().map((r) => r.id);",
+                  "  pm.expect(ids).to.include(Number(pm.collectionVariables.get('reservationId')));",
+                  "});"
+                ]
+              }
+            }
+          ],
           "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/user/reservations", "host": ["{{baseUrl}}"], "path": ["user", "reservations"] } }
         },
         {
           "name": "Get reservation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('Returns the confirmed reservation', () => {",
+                  "  pm.expect(j.id).to.eql(Number(pm.collectionVariables.get('reservationId')));",
+                  "  pm.expect(j.status).to.eql('CONFIRMED');",
+                  "});"
+                ]
+              }
+            }
+          ],
           "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/reservations/{{reservationId}}", "host": ["{{baseUrl}}"], "path": ["reservations", "{{reservationId}}"] } }
         },
         {
           "name": "Modify reservation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Seats were changed', () => {",
+                  "  const wanted = JSON.parse(pm.collectionVariables.get('modifySeatIds')).sort();",
+                  "  const got = pm.response.json().seats.map((s) => s.seatId).sort();",
+                  "  pm.expect(got).to.eql(wanted);",
+                  "});"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "PATCH",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"seatIds\": [49, 73]\n}" },
+            "body": { "mode": "raw", "raw": "{\n  \"seatIds\": {{modifySeatIds}}\n}" },
             "url": { "raw": "{{baseUrl}}/reservations/{{reservationId}}", "host": ["{{baseUrl}}"], "path": ["reservations", "{{reservationId}}"] }
           }
         },
         {
+          "name": "Conflict demo (double booking)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Οι θέσεις του modify είναι ήδη δικές μας — δεύτερη κράτηση πρέπει να αποτύχει με 409",
+                  "pm.test('Status is 409 Conflict', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"showtimeId\": {{showtimeId}},\n  \"seatIds\": {{modifySeatIds}}\n}" },
+            "url": { "raw": "{{baseUrl}}/reservations", "host": ["{{baseUrl}}"], "path": ["reservations"] }
+          }
+        },
+        {
           "name": "Cancel reservation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status is 204', () => pm.response.to.have.status(204));"]
+              }
+            }
+          ],
           "request": { "method": "DELETE", "header": [], "url": { "raw": "{{baseUrl}}/reservations/{{reservationId}}", "host": ["{{baseUrl}}"], "path": ["reservations", "{{reservationId}}"] } }
+        },
+        {
+          "name": "Get reservation (after cancel)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('Reservation is cancelled and seats are freed', () => {",
+                  "  pm.expect(j.status).to.eql('CANCELLED');",
+                  "  pm.expect(j.seats).to.be.an('array').that.is.empty;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/reservations/{{reservationId}}", "host": ["{{baseUrl}}"], "path": ["reservations", "{{reservationId}}"] } }
         }
       ]
     }

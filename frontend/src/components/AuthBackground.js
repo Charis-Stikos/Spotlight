@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
-import { Animated, Text, StyleSheet, Dimensions } from 'react-native';
+import { Animated, StyleSheet, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTheme } from '../theme/ThemeContext';
 
 // Διακοσμητικό κινούμενο φόντο για τις οθόνες σύνδεσης (gradient + blobs + glyphs)
 const { width: W, height: H } = Dimensions.get('window');
@@ -42,9 +43,11 @@ function Glyph({ char, size, left, top, float, dur, delay }) {
 }
 
 export function AuthBackground() {
+  const { isDark } = useTheme();
+  const base = isDark ? ['#13101D', '#1C1430'] : ['#FBF7FF', '#F1EAFF'];
   return (
     <Animated.View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <LinearGradient colors={['#FBF7FF', '#F1EAFF']} style={StyleSheet.absoluteFill} />
+      <LinearGradient colors={base} style={StyleSheet.absoluteFill} />
       <Blob grad={['#FF8FB1', '#FF6A88']} size={220} left={-60} top={-50} float={26} dur={4200} delay={0} />
       <Blob grad={['#9D7BFF', '#7C4DFF']} size={260} left={W - 150} top={80} float={-30} dur={5200} delay={400} />
       <Blob grad={['#FFC4A3', '#FF8A5B']} size={190} left={W - 230} top={H - 230} float={22} dur={4800} delay={200} />

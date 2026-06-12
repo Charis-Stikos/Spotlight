@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { View, Text, FlatList, RefreshControl, Pressable, StyleSheet } from 'react-native';
+import { View, Text, FlatList, RefreshControl } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Screen } from '../components/Screen';
 import { Cover } from '../components/Cover';
@@ -9,28 +9,31 @@ import { ErrorView } from '../components/ErrorView';
 import { EmptyState } from '../components/EmptyState';
 import { PressableScale } from '../components/PressableScale';
 import { GuestPrompt } from '../components/GuestPrompt';
-import { useAuth } from '../auth/AuthContext';
-import { useBadge } from '../badge/BadgeContext';
+import { Segmented } from '../components/Segmented';
+import { useAuth } from '../context/AuthContext';
+import { useBadge } from '../context/BadgeContext';
 import { getMyReservations } from '../api/reservations';
 import { getErrorMessage } from '../utils/errors';
 import { formatDateTime, formatPrice } from '../utils/format';
-import { colors, font, spacing, radius, shadow } from '../theme/theme';
+import { useTheme, makeStyles } from '../theme/ThemeContext';
+import { font, spacing, radius } from '../theme/theme';
 
-function Segmented({ value, onChange, counts }) {
-  return (
-    <View style={styles.segment}>
-      {[['upcoming', 'Upcoming'], ['history', 'History']].map(([key, label]) => (
-        <Pressable key={key} onPress={() => onChange(key)} style={[styles.segmentBtn, value === key && styles.segmentActive]}>
-          <Text style={[styles.segmentText, value === key && styles.segmentTextActive]}>
-            {label}{counts[key] ? ` (${counts[key]})` : ''}
-          </Text>
-        </Pressable>
-      ))}
-    </View>
-  );
+// "Today" / "Tomorrow" / "In X days" για επερχόμενες κρατήσεις
+function countdownLabel(iso) {
+  const a = new Date(iso); a.setHours(0, 0, 0, 0);
+  const now = new Date(); now.setHours(0, 0, 0, 0);
+  const days = Math.round((a - now) / 86400000);
+  if (days <= 0) return 'Today';
+  if (days === 1) return 'Tomorrow';
+  return `In ${days} days`;
 }
 
+// Ετικέτα καρτέλας με προαιρετικό πλήθος, π.χ. "Upcoming (2)"
+const tabLabel = (label, count) => (count ? `${label} (${count})` : label);
+
 export function MyReservationsScreen({ navigation }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const { user } = useAuth();
   const { setTicketsCount } = useBadge();
   const [items, setItems] = useState([]);
@@ -73,21 +76,17 @@ export function MyReservationsScreen({ navigation }) {
   const data = tab === 'upcoming' ? upcoming : history;
   const counts = { upcoming: upcoming.length, history: history.length };
 
+  // Ο τίτλος "My Tickets" και το system back έρχονται από το native header
   if (!user) {
     return (
-      <Screen edges={['top']}>
+      <Screen edges={[]}>
         <GuestPrompt navigation={navigation} icon="🎟️" title="Your tickets, in one place" subtitle="Sign in to view and manage your bookings." />
       </Screen>
     );
   }
 
   return (
-    <Screen edges={['top']} contentStyle={styles.screen}>
-      <View style={styles.header}>
-        <Text style={styles.hello}>My Tickets</Text>
-        <Text style={styles.subtitle}>Hi, {user?.name?.split(' ')[0] || 'there'} 👋</Text>
-      </View>
-
+    <Screen edges={[]} contentStyle={styles.screen}>
       {loading ? (
         <RowSkeletonList />
       ) : error ? (
@@ -97,16 +96,28 @@ export function MyReservationsScreen({ navigation }) {
           data={data}
           keyExtractor={(i) => String(i.id)}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}
-          ListHeaderComponent={<Segmented value={tab} onChange={setTab} counts={counts} />}
+          ListHeaderComponent={
+            <Segmented
+              value={tab}
+              onChange={setTab}
+              options={[
+                ['upcoming', tabLabel('Upcoming', counts.upcoming)],
+                ['history', tabLabel('History', counts.history)],
+              ]}
+            />
+          }
           renderItem={({ item }) => {
             const cancelled = item.status !== 'CONFIRMED';
+            const isUpcomingItem = tab === 'upcoming';
             return (
               <PressableScale onPress={() => navigation.navigate('ReservationDetails', { reservationId: item.id })} style={[styles.row, cancelled && styles.rowDim]} scaleTo={0.98}>
                 <Cover seed={item.showTitle} style={styles.thumb} />
                 <View style={styles.body}>
                   <View style={styles.rowTop}>
                     <Text style={styles.title} numberOfLines={1}>{item.showTitle}</Text>
-                    <Badge label={item.status} color={item.status === 'CONFIRMED' ? colors.success : colors.textMuted} />
+                    {isUpcomingItem
+                      ? <Badge label={countdownLabel(item.startsAt)} color={colors.primary} filled />
+                      : <Badge label={item.status} color={item.status === 'CONFIRMED' ? colors.success : colors.textMuted} />}
                   </View>
                   <Text style={styles.sub} numberOfLines={1}>{item.theatreName} · {formatDateTime(item.startsAt)}</Text>
                   <View style={styles.metaRow}>
@@ -130,18 +141,8 @@ export function MyReservationsScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors, shadow) => ({
   screen: { padding: spacing(2), paddingBottom: 0 },
-  header: { marginBottom: spacing(1.5) },
-  hello: { color: colors.text, fontSize: font.xl, fontWeight: '800' },
-  subtitle: { color: colors.textMuted, fontSize: font.sm, marginTop: spacing(0.25) },
-
-  segment: { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: radius.md, padding: 4, marginBottom: spacing(1.5), borderWidth: 1, borderColor: colors.border },
-  segmentBtn: { flex: 1, paddingVertical: spacing(1), borderRadius: radius.sm, alignItems: 'center' },
-  segmentActive: { backgroundColor: colors.primary },
-  segmentText: { color: colors.textMuted, fontWeight: '700', fontSize: font.sm },
-  segmentTextActive: { color: colors.primaryText },
-
   list: { paddingBottom: spacing(3) },
   row: { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing(1.25), marginBottom: spacing(1.5), alignItems: 'center', ...shadow.soft },
   rowDim: { opacity: 0.6 },
@@ -153,4 +154,4 @@ const styles = StyleSheet.create({
   metaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing(0.75) },
   meta: { color: colors.textMuted, fontSize: font.xs },
   total: { color: colors.primary, fontSize: font.md, fontWeight: '800' },
-});
+}));

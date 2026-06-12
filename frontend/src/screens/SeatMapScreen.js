@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { View, Text, Pressable, Animated, StyleSheet, Alert } from 'react-native';
+import { View, Text, Pressable, Animated, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../components/Screen';
@@ -12,10 +12,16 @@ import { getShowtime, getSeatMap } from '../api/catalog';
 import { createReservation, modifyReservation } from '../api/reservations';
 import { getErrorMessage } from '../utils/errors';
 import { formatDateTime, formatPrice } from '../utils/format';
-import { colors, categoryColor, font, spacing, radius, shadow } from '../theme/theme';
+import { tapLight, notifySuccess, notifyError } from '../utils/haptics';
+import { useTheme, makeStyles } from '../theme/ThemeContext';
+import { categoryColor, font, spacing, radius } from '../theme/theme';
+
+const PARTY_MAX = 8;
 
 // Θέση που "αναπηδά" όταν επιλέγεται
 function Seat({ seat, selected, taken, onPress }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const scale = useRef(new Animated.Value(1)).current;
   const prev = useRef(selected);
   useEffect(() => {
@@ -33,7 +39,7 @@ function Seat({ seat, selected, taken, onPress }) {
       <Animated.View
         style={[
           styles.seat,
-          { borderColor: categoryColor(seat.category), transform: [{ scale }] },
+          { borderColor: categoryColor(seat.category, colors), transform: [{ scale }] },
           selected && styles.seatSelected,
           taken && styles.seatTaken,
         ]}
@@ -47,6 +53,8 @@ function Seat({ seat, selected, taken, onPress }) {
 export function SeatMapScreen({ route, navigation }) {
   const { showtimeId, showTitle, mode = 'create', reservationId, initialSeatIds = [] } = route.params;
   const isEdit = mode === 'edit';
+  const { colors } = useTheme();
+  const styles = useStyles();
 
   const [showtime, setShowtime] = useState(null);
   const [seats, setSeats] = useState([]);
@@ -54,6 +62,7 @@ export function SeatMapScreen({ route, navigation }) {
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [booked, setBooked] = useState(false);
+  const [party, setParty] = useState(1); // πόσες θέσεις ψάχνει το "Best available"
   const [selected, setSelected] = useState(() => new Set(initialSeatIds));
 
   const ownSeatIds = useMemo(() => new Set(initialSeatIds), [initialSeatIds]);
@@ -91,10 +100,18 @@ export function SeatMapScreen({ route, navigation }) {
     return [...map.entries()];
   }, [seats]);
 
+  // Τιμή ανά κατηγορία (για το υπόμνημα)
+  const priceByCat = useMemo(() => {
+    const map = {};
+    for (const p of showtime?.prices || []) map[p.category] = p.price;
+    return map;
+  }, [showtime]);
+
   const isTaken = useCallback((seat) => seat.taken && !ownSeatIds.has(seat.seatId), [ownSeatIds]);
 
   const toggle = (seat) => {
     if (isTaken(seat)) return;
+    tapLight();
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(seat.seatId)) next.delete(seat.seatId);
@@ -103,19 +120,45 @@ export function SeatMapScreen({ route, navigation }) {
     });
   };
 
-  // Αυτόματη επιλογή της καλύτερης διαθέσιμης θέσης (κατηγορία, κοντά στη σκηνή & στο κέντρο)
+  // Αυτόματη επιλογή των καλύτερων ΣΥΝΕΧΟΜΕΝΩΝ θέσεων για την παρέα
+  // (καλύτερη κατηγορία, κοντά στη σκηνή & στο κέντρο της σειράς)
   const pickBest = () => {
-    const available = seats.filter((s) => !isTaken(s) && !selected.has(s.seatId));
-    if (!available.length) { Alert.alert('No seats left', 'There are no more available seats for this showtime.'); return; }
+    const n = party;
     const rank = { VIP: 0, PREMIUM: 1, STANDARD: 2 };
-    const maxNum = Math.max(...seats.map((s) => s.number));
+    const maxNum = Math.max(...seats.map((s) => s.number), 0);
     const center = (maxNum + 1) / 2;
-    available.sort((a, b) =>
-      (rank[a.category] - rank[b.category])
-      || a.rowLabel.localeCompare(b.rowLabel)
-      || (Math.abs(a.number - center) - Math.abs(b.number - center)));
-    const best = available[0];
-    setSelected((prev) => new Set(prev).add(best.seatId));
+
+    let best = null;
+    for (const [rowLabel, rowSeats] of rows) {
+      const sorted = [...rowSeats].sort((a, b) => a.number - b.number);
+      for (let i = 0; i + n <= sorted.length; i += 1) {
+        const run = sorted.slice(i, i + n);
+        if (run[n - 1].number - run[0].number !== n - 1) continue; // όχι συνεχόμενες
+        if (run.some((s) => isTaken(s) || selected.has(s.seatId))) continue;
+        const score = [
+          run.reduce((t, s) => t + rank[s.category], 0) / n, // μέση κατηγορία
+          rowLabel, // πιο μπροστινή σειρά
+          Math.abs((run[0].number + run[n - 1].number) / 2 - center), // απόσταση από το κέντρο
+        ];
+        const better = !best
+          || score[0] < best.score[0]
+          || (score[0] === best.score[0] && score[1].localeCompare(best.score[1]) < 0)
+          || (score[0] === best.score[0] && score[1] === best.score[1] && score[2] < best.score[2]);
+        if (better) best = { run, score };
+      }
+    }
+
+    if (!best) {
+      Alert.alert(
+        'No matching seats',
+        n === 1
+          ? 'There are no more available seats for this showtime.'
+          : `Couldn't find ${n} adjacent seats. Try fewer seats or pick them manually.`,
+      );
+      return;
+    }
+    tapLight();
+    setSelected((prev) => new Set([...prev, ...best.run.map((s) => s.seatId)]));
   };
 
   const selectedSeats = seats.filter((s) => selected.has(s.seatId));
@@ -138,13 +181,16 @@ export function SeatMapScreen({ route, navigation }) {
     try {
       if (isEdit) {
         await modifyReservation(reservationId, [...selected]);
+        notifySuccess();
         Alert.alert('Reservation updated', 'Your seats have been changed.');
         navigation.goBack();
       } else {
         await createReservation(showtimeId, [...selected]);
+        notifySuccess();
         setBooked(true); // εμφανίζει το overlay επιτυχίας με confetti
       }
     } catch (e) {
+      notifyError();
       Alert.alert('Could not complete booking', getErrorMessage(e));
       // Ξαναφόρτωσε τις θέσεις και κράτα στην επιλογή μόνο όσες ΔΕΝ κρατήθηκαν στο μεταξύ από άλλον
       const fresh = await loadSeats();
@@ -157,33 +203,25 @@ export function SeatMapScreen({ route, navigation }) {
     }
   };
 
-  const back = (
-    <Pressable onPress={() => navigation.goBack()} hitSlop={12} style={styles.backBtn}>
-      <Ionicons name="chevron-back" size={24} color={colors.text} />
-    </Pressable>
-  );
-
+  // Το header (τίτλος + system back) έρχεται από τον native stack navigator
   if (loading) {
     return (
-      <Screen edges={['top', 'bottom']} contentStyle={styles.screen}>
-        <View style={styles.headerRow}>{back}<Text style={styles.headerTitle}>{isEdit ? 'Change seats' : 'Choose seats'}</Text></View>
+      <Screen edges={['bottom']} contentStyle={styles.screen}>
         <Loading label="Loading seats…" />
       </Screen>
     );
   }
   if (error) {
     return (
-      <Screen edges={['top', 'bottom']} contentStyle={styles.screen}>
-        <View style={styles.headerRow}>{back}<Text style={styles.headerTitle}>{isEdit ? 'Change seats' : 'Choose seats'}</Text></View>
+      <Screen edges={['bottom']} contentStyle={styles.screen}>
         <ErrorView message={error} onRetry={load} />
       </Screen>
     );
   }
 
   return (
-    <Screen edges={['top', 'bottom']} contentStyle={styles.screen}>
+    <Screen edges={['bottom']} contentStyle={styles.screen}>
       <View style={styles.header}>
-        {back}
         <View style={styles.flex}>
           <Text style={styles.title} numberOfLines={1}>{showTitle}</Text>
           {showtime ? <Text style={styles.sub}>{formatDateTime(showtime.startsAt)} · {showtime.hallName}</Text> : null}
@@ -192,10 +230,19 @@ export function SeatMapScreen({ route, navigation }) {
 
       <View style={styles.actions}>
         <PressableScale onPress={pickBest} style={styles.bestBtn} scaleTo={0.95}>
-          <Text style={styles.bestText}>✨ Best available</Text>
+          <Text style={styles.bestText}>✨ Best {party > 1 ? `${party} together` : 'available'}</Text>
         </PressableScale>
+        <View style={styles.stepper}>
+          <Pressable onPress={() => { tapLight(); setParty((p) => Math.max(1, p - 1)); }} hitSlop={8} style={styles.stepBtn}>
+            <Ionicons name="remove" size={16} color={party > 1 ? colors.text : colors.textMuted} />
+          </Pressable>
+          <Text style={styles.stepValue}>{party}</Text>
+          <Pressable onPress={() => { tapLight(); setParty((p) => Math.min(PARTY_MAX, p + 1)); }} hitSlop={8} style={styles.stepBtn}>
+            <Ionicons name="add" size={16} color={party < PARTY_MAX ? colors.text : colors.textMuted} />
+          </Pressable>
+        </View>
         {selected.size > 0 ? (
-          <Pressable onPress={() => setSelected(new Set())} hitSlop={8}>
+          <Pressable onPress={() => setSelected(new Set())} hitSlop={8} style={styles.clearWrap}>
             <Text style={styles.clearText}>Clear</Text>
           </Pressable>
         ) : null}
@@ -223,9 +270,9 @@ export function SeatMapScreen({ route, navigation }) {
       </View>
 
       <View style={styles.legend}>
-        <Legend color={colors.standard} label="Standard" />
-        <Legend color={colors.premium} label="Premium" />
-        <Legend color={colors.vip} label="VIP" />
+        <Legend color={colors.standard} label="Standard" price={priceByCat.STANDARD} />
+        <Legend color={colors.premium} label="Premium" price={priceByCat.PREMIUM} />
+        <Legend color={colors.vip} label="VIP" price={priceByCat.VIP} />
         <Legend color={colors.seatSelected} label="Selected" filled />
         <Legend color={colors.seatTaken} label="Taken" filled />
       </View>
@@ -265,28 +312,32 @@ export function SeatMapScreen({ route, navigation }) {
   );
 }
 
-function Legend({ color, label, filled }) {
+function Legend({ color, label, filled, price }) {
+  const styles = useStyles();
   return (
     <View style={styles.legendItem}>
       <View style={[styles.legendDot, { borderColor: color }, filled && { backgroundColor: color }]} />
-      <Text style={styles.legendText}>{label}</Text>
+      <Text style={styles.legendText}>{label}{price != null ? ` · ${formatPrice(price)}` : ''}</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors, shadow) => ({
   screen: { padding: spacing(2) },
   header: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing(1.25) },
-  headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing(1) },
-  headerTitle: { color: colors.text, fontSize: font.lg, fontWeight: '800', marginLeft: spacing(0.5) },
-  backBtn: { padding: spacing(0.5), marginLeft: -spacing(0.5), marginRight: spacing(0.5) },
   flex: { flex: 1 },
   title: { color: colors.text, fontSize: font.lg, fontWeight: '800' },
   sub: { color: colors.textMuted, fontSize: font.sm, marginTop: spacing(0.4) },
-  actions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing(1.5) },
+
+  actions: { flexDirection: 'row', alignItems: 'center', gap: spacing(1), marginBottom: spacing(1.5) },
   bestBtn: { backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border, borderRadius: radius.pill, paddingHorizontal: spacing(1.75), paddingVertical: spacing(0.85) },
   bestText: { color: colors.primary, fontWeight: '800', fontSize: font.sm },
+  stepper: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.pill, paddingHorizontal: spacing(0.75), paddingVertical: spacing(0.5) },
+  stepBtn: { paddingHorizontal: spacing(0.5) },
+  stepValue: { color: colors.text, fontWeight: '800', fontSize: font.sm, minWidth: 20, textAlign: 'center' },
+  clearWrap: { marginLeft: 'auto' },
   clearText: { color: colors.accent, fontWeight: '700', fontSize: font.sm },
+
   stage: { borderRadius: radius.lg, paddingVertical: spacing(1.25), alignItems: 'center', marginBottom: spacing(2.5), borderBottomWidth: 2, borderBottomColor: colors.primary },
   stageText: { color: colors.textMuted, letterSpacing: 6, fontSize: font.xs, fontWeight: '700' },
   grid: { alignItems: 'center' },
@@ -306,10 +357,10 @@ const styles = StyleSheet.create({
   footerTotal: { color: colors.primary, fontSize: font.xl, fontWeight: '800' },
   confirmBtn: { flex: 1, marginLeft: spacing(2) },
 
-  successOverlay: { position: 'absolute', top: -spacing(2), left: -spacing(2), right: -spacing(2), bottom: -spacing(2), backgroundColor: 'rgba(20,17,38,0.55)', alignItems: 'center', justifyContent: 'center', zIndex: 20, padding: spacing(3) },
+  successOverlay: { position: 'absolute', top: -spacing(2), left: -spacing(2), right: -spacing(2), bottom: -spacing(2), backgroundColor: 'rgba(10,8,20,0.6)', alignItems: 'center', justifyContent: 'center', zIndex: 20, padding: spacing(3) },
   successCard: { backgroundColor: colors.surface, borderRadius: radius.xl, padding: spacing(3), alignItems: 'center', alignSelf: 'stretch', ...shadow.card },
   successCheck: { width: 76, height: 76, borderRadius: 38, backgroundColor: colors.success, alignItems: 'center', justifyContent: 'center', marginBottom: spacing(2) },
   successTitle: { color: colors.text, fontSize: font.xl, fontWeight: '800', textAlign: 'center' },
   successSub: { color: colors.textMuted, fontSize: font.sm, textAlign: 'center', marginTop: spacing(0.75) },
   successBtn: { alignSelf: 'stretch', marginTop: spacing(2.5) },
-});
+}));

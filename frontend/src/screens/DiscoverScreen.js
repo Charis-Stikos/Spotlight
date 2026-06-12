@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { View, Text, FlatList, Animated, RefreshControl, Pressable, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, FlatList, Animated, RefreshControl, Pressable, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../components/Screen';
 import { Cover } from '../components/Cover';
@@ -9,13 +9,15 @@ import { ErrorView } from '../components/ErrorView';
 import { EmptyState } from '../components/EmptyState';
 import { PressableScale } from '../components/PressableScale';
 import { HeartButton } from '../components/HeartButton';
-import { useAuth } from '../auth/AuthContext';
-import { useFavorites } from '../favorites/FavoritesContext';
-import { useRecentlyViewed } from '../favorites/RecentlyViewedContext';
+import { useAuth } from '../context/AuthContext';
+import { useFavorites } from '../context/FavoritesContext';
+import { useRecentlyViewed } from '../context/RecentlyViewedContext';
 import { getShows } from '../api/catalog';
 import { initialFor } from '../utils/cover';
 import { getErrorMessage } from '../utils/errors';
-import { colors, font, spacing, radius, shadow } from '../theme/theme';
+import { tapLight } from '../utils/haptics';
+import { useTheme, makeStyles } from '../theme/ThemeContext';
+import { font, spacing, radius } from '../theme/theme';
 
 const WIN_W = Dimensions.get('window').width;
 const PAD = spacing(2);
@@ -27,8 +29,17 @@ const POSTER_H = Math.round(CARD_W * 1.3);
 
 const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
 
+// Χαιρετισμός ανάλογα με την ώρα της ημέρας
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 18) return 'Good afternoon';
+  return 'Good evening';
+}
+
 // Οριζόντιο "ράφι" με κάρτες παραστάσεων (Πρόσφατα / Αγαπημένα / Για εσένα)
 function ShowRail({ title, data, onPress }) {
+  const styles = useStyles();
   return (
     <View style={styles.railWrap}>
       <Text style={styles.railTitle}>{title}</Text>
@@ -55,6 +66,7 @@ function ShowRail({ title, data, onPress }) {
 
 // Placeholder φόρτωσης (shimmer)
 function DiscoverSkeleton() {
+  const styles = useStyles();
   return (
     <View style={{ paddingTop: spacing(2) }}>
       <View style={{ paddingHorizontal: PAD }}>
@@ -73,6 +85,8 @@ function DiscoverSkeleton() {
 }
 
 export function DiscoverScreen({ navigation }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const { user } = useAuth();
   const { ids } = useFavorites();
   const { ids: recentIds } = useRecentlyViewed();
@@ -202,7 +216,7 @@ export function DiscoverScreen({ navigation }) {
     <View>
       <View style={styles.topRow}>
         <View style={styles.flex}>
-          <Text style={styles.hello}>Hi, {user?.name?.split(' ')[0] || 'there'} 👋</Text>
+          <Text style={styles.hello}>{greeting()}{user?.name ? `, ${user.name.split(' ')[0]}` : ''} 👋</Text>
           <Text style={styles.helloSub}>What will you watch?</Text>
         </View>
       </View>
@@ -220,7 +234,7 @@ export function DiscoverScreen({ navigation }) {
       {cities.length > 1 ? (
         <View style={styles.chips}>
           {cities.map((c) => (
-            <PressableScale key={c} onPress={() => setCity(c)} style={[styles.chip, city === c && styles.chipActive]} scaleTo={0.94}>
+            <PressableScale key={c} onPress={() => { tapLight(); setCity(c); }} style={[styles.chip, city === c && styles.chipActive]} scaleTo={0.94}>
               <Text style={[styles.chipText, city === c && styles.chipTextActive]}>{c}</Text>
             </PressableScale>
           ))}
@@ -271,7 +285,7 @@ export function DiscoverScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors, shadow) => ({
   screen: { padding: 0 },
   list: { paddingBottom: spacing(3) },
   column: { paddingHorizontal: PAD, justifyContent: 'space-between' },
@@ -328,4 +342,4 @@ const styles = StyleSheet.create({
   cardSub: { color: colors.textMuted, fontSize: font.xs, marginTop: spacing(0.4) },
   cardMeta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing(1) },
   cardMetaText: { color: colors.textMuted, fontSize: font.xs },
-});
+}));

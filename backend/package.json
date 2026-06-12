@@ -1,6 +1,6 @@
 {
   "name": "spotlight-backend",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Spotlight — Theatre Seat Reservation REST API (Express + MariaDB)",
   "type": "module",
   "main": "src/server.js",

@@ -1,8 +1,11 @@
-import { Pressable, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { Pressable, Text, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { colors, gradients, radius, font, spacing, shadow } from '../theme/theme';
+import { useTheme, makeStyles } from '../theme/ThemeContext';
+import { gradients, radius, font, spacing } from '../theme/theme';
 
 export function Button({ title, onPress, variant = 'primary', loading = false, disabled = false, style }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const isDisabled = disabled || loading;
 
   const content = loading ? (
@@ -39,7 +42,7 @@ export function Button({ title, onPress, variant = 'primary', loading = false, d
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors, shadow) => ({
   base: {
     height: 52,
     borderRadius: radius.md,
@@ -67,4 +70,4 @@ const styles = StyleSheet.create({
   text: { fontSize: font.md, fontWeight: '700', color: colors.text },
   textPrimary: { color: colors.primaryText },
   textGhost: { color: colors.accent, fontWeight: '700' },
-});
+}));

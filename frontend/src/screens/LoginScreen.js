@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, Text, ScrollView, Animated, Pressable, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Animated, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -8,11 +8,15 @@ import { TextField } from '../components/TextField';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { PressableScale } from '../components/PressableScale';
-import { useAuth } from '../auth/AuthContext';
+import { useAuth } from '../context/AuthContext';
 import { getErrorMessage } from '../utils/errors';
-import { colors, gradients, font, spacing, radius } from '../theme/theme';
+import { notifyError } from '../utils/haptics';
+import { useTheme, makeStyles } from '../theme/ThemeContext';
+import { gradients, font, spacing, radius } from '../theme/theme';
 
 export function LoginScreen({ navigation }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const { signIn } = useAuth();
   const insets = useSafeAreaInsets();
   const [email, setEmail] = useState('');
@@ -32,6 +36,7 @@ export function LoginScreen({ navigation }) {
   }, [enter, logoScale]);
 
   const shake = () => {
+    notifyError();
     Animated.sequence(
       [8, -8, 6, -6, 0].map((toValue) =>
         Animated.timing(shakeX, { toValue, duration: 55, useNativeDriver: true }),
@@ -73,6 +78,7 @@ export function LoginScreen({ navigation }) {
         <Ionicons name="close" size={22} color={colors.textMuted} />
       </Pressable>
       <SafeAreaView style={styles.safe}>
+        <KeyboardAvoidingView style={styles.safe} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <Animated.View style={{ opacity: enter, transform: [{ translateY }] }}>
             <View style={styles.header}>
@@ -115,12 +121,13 @@ export function LoginScreen({ navigation }) {
             </View>
           </Animated.View>
         </ScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   root: { flex: 1, backgroundColor: colors.bg },
   close: { position: 'absolute', right: spacing(2), zIndex: 10, width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
   safe: { flex: 1 },
@@ -135,4 +142,4 @@ const styles = StyleSheet.create({
   footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing(1) },
   footerText: { color: colors.textMuted, fontSize: font.sm },
   footerLink: { color: colors.accent, fontSize: font.sm, fontWeight: '800' },
-});
+}));

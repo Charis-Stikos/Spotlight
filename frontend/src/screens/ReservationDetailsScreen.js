@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, Alert } from 'react-native';
+import { View, Text, Alert, Share } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Screen } from '../components/Screen';
 import { Cover } from '../components/Cover';
@@ -11,10 +11,13 @@ import { getReservation, cancelReservation } from '../api/reservations';
 import { initialFor } from '../utils/cover';
 import { getErrorMessage } from '../utils/errors';
 import { formatDate, formatTime, formatPrice } from '../utils/format';
-import { colors, categoryColor, font, spacing, radius, shadow } from '../theme/theme';
+import { useTheme, makeStyles } from '../theme/ThemeContext';
+import { categoryColor, font, spacing, radius } from '../theme/theme';
 
 export function ReservationDetailsScreen({ route, navigation }) {
   const { reservationId } = route.params;
+  const { colors } = useTheme();
+  const styles = useStyles();
   const [res, setRes] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -73,6 +76,19 @@ export function ReservationDetailsScreen({ route, navigation }) {
       initialSeatIds: res.seats.map((s) => s.seatId),
     });
 
+  // Κοινοποίηση του εισιτηρίου ως κείμενο
+  const onShare = () => {
+    const seatList = res.seats.map((s) => `${s.rowLabel}${s.number}`).join(', ');
+    Share.share({
+      message:
+        `🎭 ${res.showTitle}\n` +
+        `📍 ${res.theatreName} · ${res.hallName}\n` +
+        `🗓️ ${formatDate(res.startsAt)} at ${formatTime(res.startsAt)}\n` +
+        `💺 Seats: ${seatList}\n` +
+        `🎟️ Ticket #${String(res.id).padStart(6, '0')} — booked on Spotlight`,
+    }).catch(() => {});
+  };
+
   if (loading) return <Screen><Loading /></Screen>;
   if (error) return <Screen><ErrorView message={error} onRetry={load} /></Screen>;
 
@@ -124,8 +140,8 @@ export function ReservationDetailsScreen({ route, navigation }) {
           {res.seats.length ? (
             <View style={styles.chips}>
               {res.seats.map((s) => (
-                <View key={s.seatId} style={[styles.chip, { borderColor: categoryColor(s.category) }]}>
-                  <View style={[styles.chipDot, { backgroundColor: categoryColor(s.category) }]} />
+                <View key={s.seatId} style={[styles.chip, { borderColor: categoryColor(s.category, colors) }]}>
+                  <View style={[styles.chipDot, { backgroundColor: categoryColor(s.category, colors) }]} />
                   <Text style={styles.chipText}>{s.rowLabel}{s.number}</Text>
                 </View>
               ))}
@@ -148,9 +164,12 @@ export function ReservationDetailsScreen({ route, navigation }) {
         </View>
       </View>
 
+      {confirmed ? (
+        <Button title="Share ticket" variant="secondary" onPress={onShare} style={{ marginTop: spacing(2.5) }} />
+      ) : null}
       {canModify ? (
         <>
-          <Button title="Change seats" variant="secondary" onPress={onModify} style={{ marginTop: spacing(2.5) }} />
+          <Button title="Change seats" variant="secondary" onPress={onModify} style={{ marginTop: spacing(1.5) }} />
           <Button title="Cancel reservation" variant="danger" onPress={onCancel} loading={working} style={{ marginTop: spacing(1.5) }} />
         </>
       ) : null}
@@ -158,7 +177,7 @@ export function ReservationDetailsScreen({ route, navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors, shadow) => ({
   ticket: { backgroundColor: colors.surface, borderRadius: radius.lg, ...shadow.card },
 
   // Στέλεχος
@@ -194,4 +213,4 @@ const styles = StyleSheet.create({
   total: { color: colors.primary, fontSize: font.xl, fontWeight: '800' },
   barcode: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', marginTop: spacing(2.5), height: 46, overflow: 'hidden' },
   ticketNo: { color: colors.textMuted, fontSize: font.xs, fontWeight: '700', letterSpacing: 2, textAlign: 'center', marginTop: spacing(1) },
-});
+}));

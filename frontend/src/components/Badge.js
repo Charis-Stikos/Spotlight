@@ -1,16 +1,20 @@
-import { View, Text, StyleSheet } from 'react-native';
-import { colors, radius, font, spacing } from '../theme/theme';
+import { View, Text } from 'react-native';
+import { useTheme, makeStyles } from '../theme/ThemeContext';
+import { radius, font, spacing } from '../theme/theme';
 
 // Μικρή ετικέτα-pill (κατηγορίες θέσεων / καταστάσεις)
-export function Badge({ label, color = colors.accent, filled = false }) {
+export function Badge({ label, color, filled = false }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
+  const c = color || colors.accent;
   return (
-    <View style={[styles.badge, { borderColor: color }, filled && { backgroundColor: color }]}>
-      <Text style={[styles.text, { color: filled ? colors.primaryText : color }]}>{label}</Text>
+    <View style={[styles.badge, { borderColor: c }, filled && { backgroundColor: c }]}>
+      <Text style={[styles.text, { color: filled ? colors.primaryText : c }]}>{label}</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(() => ({
   badge: {
     paddingHorizontal: spacing(1),
     paddingVertical: spacing(0.4),
@@ -19,4 +23,4 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   text: { fontSize: font.xs, fontWeight: '700' },
-});
+}));

@@ -3,9 +3,9 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../auth/AuthContext';
-import { useBadge } from '../badge/BadgeContext';
-import { colors } from '../theme/theme';
+import { useAuth } from '../context/AuthContext';
+import { useBadge } from '../context/BadgeContext';
+import { useTheme } from '../theme/ThemeContext';
 
 import { LoginScreen } from '../screens/LoginScreen';
 import { RegisterScreen } from '../screens/RegisterScreen';
@@ -18,58 +18,70 @@ import { MyReservationsScreen } from '../screens/MyReservationsScreen';
 import { ReservationDetailsScreen } from '../screens/ReservationDetailsScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 
-const stackOptions = {
-  headerStyle: { backgroundColor: colors.surface },
-  headerTintColor: colors.text,
-  headerTitleStyle: { fontWeight: '800' },
-  headerShadowVisible: false,
-  contentStyle: { backgroundColor: colors.bg },
-};
+// Κοινές επιλογές stack βασισμένες στο ενεργό θέμα
+function useStackOptions() {
+  const { colors } = useTheme();
+  return {
+    headerStyle: { backgroundColor: colors.surface },
+    headerTintColor: colors.text,
+    headerTitleStyle: { fontWeight: '800' },
+    headerShadowVisible: false,
+    contentStyle: { backgroundColor: colors.bg },
+  };
+}
 
+// Κοινές επιλογές για τις εσωτερικές οθόνες — όλες με το standard header και system back
+const showDetailsOptions = ({ route }) => ({ title: route.params?.title || 'Show' });
+const seatMapOptions = ({ route }) => ({ title: route.params?.mode === 'edit' ? 'Change seats' : 'Choose seats' });
+const theatreOptions = ({ route }) => ({ title: route.params?.name || 'Theatre' });
 
 const DiscoverNav = createNativeStackNavigator();
 function DiscoverStack() {
+  const stackOptions = useStackOptions();
   return (
     <DiscoverNav.Navigator screenOptions={stackOptions}>
       <DiscoverNav.Screen name="Discover" component={DiscoverScreen} options={{ headerShown: false }} />
-      <DiscoverNav.Screen name="Theatre" component={TheatreScreen} options={({ route }) => ({ title: route.params?.name || 'Theatre' })} />
-      <DiscoverNav.Screen name="ShowDetails" component={ShowDetailsScreen} options={{ headerShown: false }} />
-      <DiscoverNav.Screen name="SeatMap" component={SeatMapScreen} options={{ headerShown: false }} />
+      <DiscoverNav.Screen name="Theatre" component={TheatreScreen} options={theatreOptions} />
+      <DiscoverNav.Screen name="ShowDetails" component={ShowDetailsScreen} options={showDetailsOptions} />
+      <DiscoverNav.Screen name="SeatMap" component={SeatMapScreen} options={seatMapOptions} />
     </DiscoverNav.Navigator>
   );
 }
 
 const SearchNav = createNativeStackNavigator();
 function SearchStack() {
+  const stackOptions = useStackOptions();
   return (
     <SearchNav.Navigator screenOptions={stackOptions}>
       <SearchNav.Screen name="Search" component={SearchScreen} options={{ headerShown: false }} />
-      <SearchNav.Screen name="Theatre" component={TheatreScreen} options={({ route }) => ({ title: route.params?.name || 'Theatre' })} />
-      <SearchNav.Screen name="ShowDetails" component={ShowDetailsScreen} options={{ headerShown: false }} />
-      <SearchNav.Screen name="SeatMap" component={SeatMapScreen} options={{ headerShown: false }} />
+      <SearchNav.Screen name="Theatre" component={TheatreScreen} options={theatreOptions} />
+      <SearchNav.Screen name="ShowDetails" component={ShowDetailsScreen} options={showDetailsOptions} />
+      <SearchNav.Screen name="SeatMap" component={SeatMapScreen} options={seatMapOptions} />
     </SearchNav.Navigator>
   );
 }
 
 const TicketsNav = createNativeStackNavigator();
 function TicketsStack() {
+  const stackOptions = useStackOptions();
   return (
     <TicketsNav.Navigator screenOptions={stackOptions}>
       <TicketsNav.Screen name="MyReservations" component={MyReservationsScreen} options={{ title: 'My Tickets' }} />
       <TicketsNav.Screen name="ReservationDetails" component={ReservationDetailsScreen} options={{ title: 'Reservation' }} />
-      <TicketsNav.Screen name="SeatMap" component={SeatMapScreen} options={{ headerShown: false }} />
+      <TicketsNav.Screen name="SeatMap" component={SeatMapScreen} options={seatMapOptions} />
     </TicketsNav.Navigator>
   );
 }
 
 const ProfileNav = createNativeStackNavigator();
 function ProfileStack() {
+  const stackOptions = useStackOptions();
   return (
     <ProfileNav.Navigator screenOptions={stackOptions}>
       <ProfileNav.Screen name="Profile" component={ProfileScreen} options={{ headerShown: false }} />
-      <ProfileNav.Screen name="Theatre" component={TheatreScreen} options={({ route }) => ({ title: route.params?.name || 'Theatre' })} />
-      <ProfileNav.Screen name="ShowDetails" component={ShowDetailsScreen} options={{ headerShown: false }} />
-      <ProfileNav.Screen name="SeatMap" component={SeatMapScreen} options={{ headerShown: false }} />
+      <ProfileNav.Screen name="Theatre" component={TheatreScreen} options={theatreOptions} />
+      <ProfileNav.Screen name="ShowDetails" component={ShowDetailsScreen} options={showDetailsOptions} />
+      <ProfileNav.Screen name="SeatMap" component={SeatMapScreen} options={seatMapOptions} />
     </ProfileNav.Navigator>
   );
 }
@@ -84,13 +96,21 @@ const ICONS = {
 const Tab = createBottomTabNavigator();
 function AppTabs() {
   const { ticketsCount } = useBadge();
+  const { colors, shadow } = useTheme();
   const insets = useSafeAreaInsets();
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
         // Πάνω από το home indicator (iOS) / gesture bar (Android) με προσθήκη του bottom inset
-        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border, height: 58 + insets.bottom, paddingBottom: insets.bottom + 6, paddingTop: 6 },
+        tabBarStyle: {
+          backgroundColor: colors.surface,
+          borderTopWidth: 0,
+          height: 58 + insets.bottom,
+          paddingBottom: insets.bottom + 6,
+          paddingTop: 6,
+          ...shadow.card,
+        },
         tabBarLabelStyle: { fontSize: 11, fontWeight: '700' },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
@@ -120,6 +140,7 @@ const RootStack = createNativeStackNavigator();
 
 export function RootNavigator() {
   const { restoring } = useAuth();
+  const { colors } = useTheme();
 
   if (restoring) {
     return (

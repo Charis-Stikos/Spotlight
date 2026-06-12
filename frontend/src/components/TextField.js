@@ -1,9 +1,13 @@
 import { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
-import { colors, radius, font, spacing } from '../theme/theme';
+import { View, Text, TextInput, Pressable } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useTheme, makeStyles } from '../theme/ThemeContext';
+import { radius, font, spacing } from '../theme/theme';
 
-// Πεδίο κειμένου με label, σφάλμα και εναλλαγή εμφάνισης κωδικού
-export function TextField({ label, value, onChangeText, error, secureTextEntry, ...props }) {
+// Πεδίο κειμένου με label, σφάλμα, εναλλαγή εμφάνισης κωδικού και προαιρετικό κουμπί καθαρισμού
+export function TextField({ label, value, onChangeText, error, secureTextEntry, clearable = false, ...props }) {
+  const { colors } = useTheme();
+  const styles = useStyles();
   const [hidden, setHidden] = useState(!!secureTextEntry);
   const [focused, setFocused] = useState(false);
 
@@ -23,6 +27,11 @@ export function TextField({ label, value, onChangeText, error, secureTextEntry, 
           onBlur={() => setFocused(false)}
           {...props}
         />
+        {clearable && value ? (
+          <Pressable onPress={() => onChangeText('')} hitSlop={10}>
+            <Ionicons name="close-circle" size={18} color={colors.textMuted} />
+          </Pressable>
+        ) : null}
         {secureTextEntry ? (
           <Pressable onPress={() => setHidden((h) => !h)} hitSlop={10}>
             <Text style={styles.toggle}>{hidden ? 'Show' : 'Hide'}</Text>
@@ -34,7 +43,7 @@ export function TextField({ label, value, onChangeText, error, secureTextEntry, 
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   wrap: { marginBottom: spacing(2) },
   label: { color: colors.textMuted, fontSize: font.sm, marginBottom: spacing(0.75), fontWeight: '600' },
   inputWrap: {
@@ -49,6 +58,6 @@ const styles = StyleSheet.create({
   focused: { borderColor: colors.accent },
   errored: { borderColor: colors.danger },
   input: { flex: 1, height: 50, color: colors.text, fontSize: font.md },
-  toggle: { color: colors.accent, fontWeight: '600', fontSize: font.sm },
+  toggle: { color: colors.accent, fontWeight: '600', fontSize: font.sm, marginLeft: spacing(1) },
   error: { color: colors.danger, fontSize: font.xs, marginTop: spacing(0.5) },
-});
+}));

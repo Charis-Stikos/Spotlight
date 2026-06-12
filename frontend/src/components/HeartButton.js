@@ -1,16 +1,19 @@
 import { useRef } from 'react';
 import { Animated, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useFavorites } from '../favorites/FavoritesContext';
-import { colors } from '../theme/theme';
+import { useFavorites } from '../context/FavoritesContext';
+import { useTheme } from '../theme/ThemeContext';
+import { tapMedium } from '../utils/haptics';
 
 // Καρδιά που "αναπηδά" όταν πατηθεί· onSurface = ημιδιάφανος κύκλος για ευκρίνεια πάνω σε εικόνα
 export function HeartButton({ id, size = 20, color = '#fff', onSurface = false }) {
+  const { colors } = useTheme();
   const { isFavorite, toggle } = useFavorites();
   const fav = isFavorite(id);
   const scale = useRef(new Animated.Value(1)).current;
 
   const onPress = () => {
+    tapMedium();
     Animated.sequence([
       Animated.spring(scale, { toValue: 1.4, useNativeDriver: true, speed: 60, bounciness: 14 }),
       Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 50, bounciness: 10 }),

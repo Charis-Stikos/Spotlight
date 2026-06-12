@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { View, Text, FlatList, Pressable, StyleSheet } from 'react-native';
+import { View, Text, FlatList, Pressable } from 'react-native';
 import { Screen } from '../components/Screen';
 import { Cover } from '../components/Cover';
 import { Badge } from '../components/Badge';
@@ -9,10 +9,13 @@ import { EmptyState } from '../components/EmptyState';
 import { getTheatre } from '../api/catalog';
 import { initialFor } from '../utils/cover';
 import { getErrorMessage } from '../utils/errors';
-import { colors, font, spacing, radius, shadow } from '../theme/theme';
+import { useTheme, makeStyles } from '../theme/ThemeContext';
+import { font, spacing, radius } from '../theme/theme';
 
 export function TheatreScreen({ route, navigation }) {
   const { theatreId } = route.params;
+  const { colors } = useTheme();
+  const styles = useStyles();
   const [theatre, setTheatre] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -76,7 +79,7 @@ export function TheatreScreen({ route, navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors, shadow) => ({
   screen: { padding: spacing(2) },
   list: { paddingBottom: spacing(3) },
   hero: { height: 150, borderRadius: radius.lg },
@@ -94,4 +97,4 @@ const styles = StyleSheet.create({
   rowTitle: { color: colors.text, fontSize: font.md, fontWeight: '700', flexShrink: 1, paddingRight: spacing(1) },
   rowMeta: { color: colors.textMuted, fontSize: font.xs, marginTop: spacing(0.4) },
   rowDesc: { color: colors.textMuted, fontSize: font.sm, marginTop: spacing(0.5) },
-});
+}));

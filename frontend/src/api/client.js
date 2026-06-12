@@ -1,15 +1,18 @@
 import axios from 'axios';
 import Constants from 'expo-constants';
 
-// Στο Expo Go ο host του Metro είναι η διεύθυνση που βλέπει το κινητό· τη χρησιμοποιούμε για το backend (port 4000)
+// Διεύθυνση του backend: ρυθμίζεται στο app.json (extra.apiUrl / extra.apiPort).
+// Χωρίς apiUrl, ο host προκύπτει αυτόματα από τον Metro host του Expo (η IP που βλέπει το κινητό).
 function resolveBaseUrl() {
+  const { apiUrl, apiPort = 4000 } = Constants.expoConfig?.extra || {};
+  if (typeof apiUrl === 'string' && apiUrl.startsWith('http')) return apiUrl;
   const hostUri =
     Constants.expoConfig?.hostUri ||
     Constants.expoGoConfig?.debuggerHost ||
     Constants.manifest?.debuggerHost ||
     '';
   const host = hostUri.split(':')[0] || 'localhost';
-  return `http://${host}:4000/api`;
+  return `http://${host}:${apiPort}/api`;
 }
 
 export const API_BASE_URL = resolveBaseUrl();

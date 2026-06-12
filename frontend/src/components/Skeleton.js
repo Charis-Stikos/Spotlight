@@ -1,9 +1,11 @@
 import { useEffect, useRef } from 'react';
-import { View, Animated, StyleSheet } from 'react-native';
-import { colors, spacing, radius, shadow } from '../theme/theme';
+import { View, Animated } from 'react-native';
+import { useTheme, makeStyles } from '../theme/ThemeContext';
+import { spacing, radius } from '../theme/theme';
 
 // Παλλόμενο placeholder για καταστάσεις φόρτωσης (shimmer)
 export function Skeleton({ width, height, radius: r = 8, style }) {
+  const { colors } = useTheme();
   const v = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const loop = Animated.loop(
@@ -21,6 +23,7 @@ export function Skeleton({ width, height, radius: r = 8, style }) {
 
 // Λίστα από placeholder γραμμές (όπως οι κάρτες/εισιτήρια)
 export function RowSkeletonList({ count = 6 }) {
+  const styles = useStyles();
   return (
     <View style={{ paddingTop: spacing(0.5) }}>
       {Array.from({ length: count }).map((_, i) => (
@@ -37,11 +40,11 @@ export function RowSkeletonList({ count = 6 }) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors, shadow) => ({
   row: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border,
     padding: spacing(1.25), marginBottom: spacing(1.5), ...shadow.soft,
   },
   body: { flex: 1, marginLeft: spacing(1.5) },
-});
+}));
